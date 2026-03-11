@@ -1,7 +1,15 @@
 import requests
 from snownlp import SnowNLP
+import matplotlib.pyplot as plt
+import os
+import openai
 
-# 获取新浪新闻
+
+# 读取API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+
+# 获取新浪财经新闻
 def get_stock_news():
 
     url = "https://feed.mix.sina.com.cn/api/roll/get"
@@ -41,10 +49,10 @@ def analyze_sentiment(news_list):
     for headline in news_list:
 
         s = SnowNLP(headline)
-        score = s.sentiments   # 0~1
+        score = s.sentiments
 
         print("\n新闻:", headline)
-        print("情绪分数:", round(score,2))
+        print("情绪分数:", round(score, 2))
 
         if score > 0.6:
             positive += 1
@@ -59,6 +67,34 @@ def analyze_sentiment(news_list):
             print("判断: Neutral")
 
     return positive, negative, neutral
+
+
+# GPT总结新闻
+def summarize_news(news):
+
+    if not openai.api_key:
+        return "No OpenAI API key provided."
+
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=f"Summarize this financial news in one sentence: {news}",
+        max_tokens=40
+    )
+
+    return response.choices[0].text.strip()
+
+
+# 绘制情绪图
+def plot_sentiment_distribution(positive, negative, neutral):
+
+    labels = ['Positive', 'Negative', 'Neutral']
+    sizes = [positive, negative, neutral]
+
+    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    plt.title("News Sentiment Distribution")
+    plt.axis('equal')
+
+    plt.show()
 
 
 # 主程序
@@ -79,6 +115,13 @@ def main():
     for n in news:
         print("-", n)
 
+    print("\n新闻总结:")
+
+    for n in news:
+        summary = summarize_news(n)
+        print("原新闻:", n)
+        print("AI总结:", summary)
+
     print("\n开始情绪分析...")
 
     positive, negative, neutral = analyze_sentiment(news)
@@ -88,7 +131,7 @@ def main():
     print("Negative:", negative)
     print("Neutral:", neutral)
 
-    # 总体情绪
+    # 总体结论
     if positive > negative:
         result = "Positive"
     elif negative > positive:
@@ -99,39 +142,9 @@ def main():
     print("\nAI结论:")
     print("市场情绪:", result)
 
+    # 画图
+    plot_sentiment_distribution(positive, negative, neutral)
+
 
 if __name__ == "__main__":
     main()
-   import openai
-
-# 设置 API 密钥
-openai.api_key = 'yuzuruchaos'
-
-# 使用 OpenAI 来总结新闻
-def summarize_news(news):
-    response = openai.Completion.create(
-        engine="text-davinci-003",  # 使用 Davinci 模型
-        prompt=f"Summarize the following news: {news}",
-        max_tokens=50,
-        temperature=0.7  # 控制生成文本的随机性
-    )
-    return response.choices[0].text.strip()
-
-# 在情绪分析中使用新闻总结
-for headline in news:
-    summary = summarize_news(headline)  # 调用新闻总结功能
-    print("Summary:", summary) 
-    import matplotlib.pyplot as plt
-
-# 绘制情绪分布图
-def plot_sentiment_distribution(positive, negative, neutral):
-    labels = ['Positive', 'Negative', 'Neutral']
-    sizes = [positive, negative, neutral]
-    
-    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-    plt.axis('equal')  # 确保饼图为圆形
-    plt.title("Sentiment Distribution")
-    plt.show()
-
-# 在分析完所有新闻后调用图表
-plot_sentiment_distribution(positive, negative, neutral)
