@@ -1,5 +1,6 @@
 import requests
 import os
+import feedparser
 from openai import OpenAI
 
 client = OpenAI(
@@ -8,12 +9,11 @@ client = OpenAI(
 )
 
 headers = {
-    "User-Agent": "Mozilla/5.0",
-    "Referer": "https://finance.sina.com.cn"
+    "User-Agent": "Mozilla/5.0"
 }
 
 
-# 获取股票行情（新浪）
+# 股票行情（新浪）
 def get_stock_price(code):
 
     if code.startswith("6"):
@@ -23,29 +23,25 @@ def get_stock_price(code):
 
     r = requests.get(url, headers=headers)
 
-    text = r.text
-
-    data = text.split(",")
+    data = r.text.split(",")
 
     if len(data) < 5:
         return None
 
     name = data[0].split('"')[1]
-    open_price = float(data[1])
     last_close = float(data[2])
     current_price = float(data[3])
 
-    change = current_price - last_close
-    change_percent = change / last_close * 100
+    change = (current_price - last_close) / last_close * 100
 
     return {
         "name": name,
         "price": current_price,
-        "change": round(change_percent, 2)
+        "change": round(change, 2)
     }
 
 
-# 获取K线数据（简单版）
+# K线
 def get_kline(code):
 
     if code.startswith("6"):
@@ -53,7 +49,7 @@ def get_kline(code):
     else:
         symbol = "sz" + code
 
-    url = f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
+    url = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
 
     params = {
         "symbol": symbol,
@@ -67,12 +63,9 @@ def get_kline(code):
     return r.json()
 
 
-# 获取新闻
-import feedparser
-
+# 新闻（Google News RSS）
 def get_stock_news(code):
 
-    # 简单股票关键词映射
     stock_map = {
         "000001": "平安银行",
         "600519": "贵州茅台",
@@ -93,62 +86,6 @@ def get_stock_news(code):
 
     return news
 
-    news = []
-
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
-    # 新浪
-    try:
-
-        if code.startswith("6"):
-            stock = "sh" + code
-        else:
-            stock = "sz" + code
-
-        url = f"https://finance.sina.com.cn/realstock/company/{stock}/finance.json"
-
-        r = requests.get(url, headers=headers, timeout=5)
-
-        if r.status_code == 200:
-
-            data = r.json()
-
-            for i in data.get("result", []):
-                news.append(i["title"])
-
-    except:
-        pass
-
-
-    # 东方财富备用
-    if len(news) < 5:
-
-        try:
-
-            url = "https://search-api-web.eastmoney.com/search/jsonp"
-
-            params = {
-                "type": "news",
-                "keyword": code
-            }
-
-            r = requests.get(url, params=params, headers=headers, timeout=5)
-
-            text = r.text
-
-            import re
-
-            titles = re.findall(r'"title":"(.*?)"', text)
-
-            news.extend(titles[:10])
-
-        except:
-            pass
-
-
-    return news[:10]
 
 # AI情绪分析
 def analyze_sentiment(news_list):
@@ -185,7 +122,11 @@ neutral
         else:
             neutral += 1
 
-    return positive, negative, neutral
+    score_raw = (positive - negative) / max(len(news_list), 1)
+
+    sentiment_score = round((score_raw + 1) * 5, 1)
+
+    return positive, negative, neutral, sentiment_score
 
 
 # AI投资报告
@@ -203,6 +144,7 @@ def generate_report(news_list):
 1 市场情绪
 2 投资机会
 3 风险提示
+4 结论
 """
 
     response = client.chat.completions.create(
