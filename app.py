@@ -1,79 +1,46 @@
 import streamlit as st
-import requests
-from snownlp import SnowNLP
+from analyzer import get_stock_news, analyze_sentiment, plot_sentiment_distribution
 
-st.title("AI Stock News Sentiment Analyzer")
+def main():
+    st.title("AI Stock Sentiment Analyzer")
+    
+    stock = st.text_input("请输入股票代码:")
+    
+    if stock:
+        st.write("\n正在获取新闻...")
 
-stock = st.text_input("Enter Stock Code", "000001")
+        news = get_stock_news(stock)
 
+        if not news:
+            st.write("获取新闻失败")
+            return
 
-def get_news():
+        st.write("\n最新新闻:")
+        for n in news:
+            st.write("-", n)
 
-    url = "https://feed.mix.sina.com.cn/api/roll/get"
+        st.write("\n开始情绪分析...")
 
-    params = {
-        "pageid": "153",
-        "lid": "2509",
-        "num": "10"
-    }
+        positive, negative, neutral = analyze_sentiment(news)
 
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
+        st.write("\n情绪统计")
+        st.write(f"Positive: {positive}")
+        st.write(f"Negative: {negative}")
+        st.write(f"Neutral: {neutral}")
 
-    r = requests.get(url, params=params, headers=headers)
+        # 绘制情绪分布图
+        plot_sentiment_distribution(positive, negative, neutral)
 
-    data = r.json()
-
-    news = []
-
-    for item in data["result"]["data"]:
-        news.append(item["title"])
-
-    return news
-
-
-def analyze(news):
-
-    positive = 0
-    negative = 0
-    neutral = 0
-
-    for n in news:
-
-        s = SnowNLP(n)
-        score = s.sentiments
-
-        if score > 0.6:
-            positive += 1
-        elif score < 0.4:
-            negative += 1
+        # 总体情绪
+        if positive > negative:
+            result = "Positive"
+        elif negative > positive:
+            result = "Negative"
         else:
-            neutral += 1
+            result = "Neutral"
 
-    return positive, negative, neutral
+        st.write("\nAI结论:")
+        st.write(f"市场情绪: {result}")
 
-
-if st.button("Analyze"):
-
-    news = get_news()
-
-    st.subheader("Latest News")
-
-    for n in news:
-        st.write("-", n)
-
-    pos, neg, neu = analyze(news)
-
-    st.subheader("Sentiment Result")
-
-    st.write("Positive:", pos)
-    st.write("Negative:", neg)
-    st.write("Neutral:", neu)
-
-    if pos > neg:
-        st.success("Overall Market Sentiment: Positive")
-    elif neg > pos:
-        st.error("Overall Market Sentiment: Negative")
-    else:
-        st.warning("Overall Market Sentiment: Neutral")
+if __name__ == "__main__":
+    main()
